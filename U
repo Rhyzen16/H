@@ -1,0 +1,62 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Pins and settings
+#define AUDIO_IN A0        // Audio input from XY-WRBT
+#define PTT_OUT 8          // Output to radio PTT
+#define AUDIO_THRESHOLD 200 // Adjust based on signal level
+#define HANG_TIME 1500      // Time in ms to hold PTT after audio
+
+// LCD address and size
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Try 0x3F if 0x27 doesn't work
+
+unsigned long lastSoundTime = 0;
+bool isTransmitting = false;
+
+void setup() {
+  pinMode(PTT_OUT, OUTPUT);
+  digitalWrite(PTT_OUT, LOW); // Start with PTT off
+
+  lcd.begin();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("BT Repeater Ready");
+  lcd.setCursor(0, 1);
+  lcd.print("Idle");
+}
+
+void loop() {
+  int audioLevel = analogRead(AUDIO_IN);
+
+  // Show audio level bar (optional)
+  displayAudioLevel(audioLevel);
+
+  // If audio exceeds threshold, key PTT
+  if (audioLevel > AUDIO_THRESHOLD) {
+    digitalWrite(PTT_OUT, HIGH);
+    lastSoundTime = millis();
+    isTransmitting = true;
+    lcd.setCursor(0, 1);
+    lcd.print("Transmitting     ");
+  }
+
+  // Unkey if hang time has passed
+  if (isTransmitting && millis() - lastSoundTime > HANG_TIME) {
+    digitalWrite(PTT_OUT, LOW);
+    isTransmitting = false;
+    lcd.setCursor(0, 1);
+    lcd.print("Idle             ");
+  }
+
+  delay(50); // smooth reading
+}
+
+// Optional: Display audio level as a bar
+void displayAudioLevel(int level) {
+  int bars = map(level, 0, 1023, 0, 16); // Map to LCD width
+  lcd.setCursor(0, 0);
+  for (int i = 0; i < 16; i++) {
+    if (i < bars) lcd.write(byte(255)); // Full block
+    else lcd.print(" ");
+  }
+}
