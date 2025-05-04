@@ -1,0 +1,22 @@
+void setup() {
+  // Start Serial Communication for debugging
+  Serial.begin(9600);
+  
+  // Wait for a second to allow Serial to start
+  delay(1000);
+  
+  // Print message before reset
+  Serial.println("Arduino is resetting...");
+
+  // Trigger reset
+  triggerReset();
+}
+
+void loop() {
+  // The loop is empty because we want the reset to occur immediately after setup.
+}
+
+void triggerReset() {
+  // This command forces a reset by jumping to the address 0 (reset vector)
+  asm volatile ("  jmp 0");
+}
