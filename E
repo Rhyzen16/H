@@ -1,0 +1,71 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Pin assignments
+#define BT_AUDIO_IN A0         // From Bluetooth module (audio detection)
+#define RADIO_AUDIO_IN A1      // From radio speaker (audio detection)
+#define RADIO_PTT_OUT 8        // To radio PTT (via transistor/relay)
+#define BT_PTT_OUT 9           // Optional: to phone headset PTT, if needed
+
+#define AUDIO_THRESHOLD 200    // Adjust this based on actual testing
+#define HANG_TIME 1500         // Time to keep PTT on after last audio
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+unsigned long lastBTActivity = 0;
+unsigned long lastRadioActivity = 0;
+bool btTransmitting = false;
+bool radioTransmitting = false;
+
+void setup() {
+  pinMode(RADIO_PTT_OUT, OUTPUT);
+  pinMode(BT_PTT_OUT, OUTPUT);
+  digitalWrite(RADIO_PTT_OUT, LOW);
+  digitalWrite(BT_PTT_OUT, LOW);
+
+  lcd.begin();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("BT-Radio Repeater");
+  lcd.setCursor(0, 1);
+  lcd.print("Idle");
+}
+
+void loop() {
+  int btAudio = analogRead(BT_AUDIO_IN);
+  int radioAudio = analogRead(RADIO_AUDIO_IN);
+
+  // Phone is talking (BT → Radio)
+  if (btAudio > AUDIO_THRESHOLD && !radioTransmitting) {
+    digitalWrite(RADIO_PTT_OUT, HIGH);
+    lastBTActivity = millis();
+    btTransmitting = true;
+    lcd.setCursor(0, 1);
+    lcd.print("Phone -> Radio   ");
+  }
+
+  if (btTransmitting && millis() - lastBTActivity > HANG_TIME) {
+    digitalWrite(RADIO_PTT_OUT, LOW);
+    btTransmitting = false;
+    lcd.setCursor(0, 1);
+    lcd.print("Idle             ");
+  }
+
+  // Radio is talking (Radio → Phone)
+  if (radioAudio > AUDIO_THRESHOLD && !btTransmitting) {
+    digitalWrite(BT_PTT_OUT, HIGH);  // Optional: only needed for certain phone apps
+    lastRadioActivity = millis();
+    radioTransmitting = true;
+    lcd.setCursor(0, 1);
+    lcd.print("Radio -> Phone   ");
+  }
+
+  if (radioTransmitting && millis() - lastRadioActivity > HANG_TIME) {
+    digitalWrite(BT_PTT_OUT, LOW);
+    radioTransmitting = false;
+    lcd.setCursor(0, 1);
+    lcd.print("Idle             ");
+  }
+
+  delay(50);
+}
