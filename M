@@ -1,0 +1,140 @@
+const int tonePin = 9;         // Output pin for the Morse tone
+const int pttRelayPin = 7;     // Pin to control the relay for PTT
+const int toneFreq = 800;      // Frequency of the tone in Hz
+unsigned long dotLength = 100; // Default dot length in milliseconds
+String incomingMessage = "";   // Store the incoming Bluetooth message
+unsigned long lastTransmission = 0;  // Time of last transmission for repeat
+unsigned long repeatDelay = 5000; // Default repeat delay (5 seconds)
+bool autoRepeat = false;       // Flag to check if repeat is enabled
+
+void setup() {
+  pinMode(tonePin, OUTPUT);
+  pinMode(pttRelayPin, OUTPUT);
+  digitalWrite(pttRelayPin, LOW);
+  
+  Serial.begin(9600);          // Start serial communication with HC-05
+  Serial.println("Ready to transmit Morse. Send commands:");
+}
+
+void loop() {
+  // Listen for incoming serial commands from Bluetooth (HC-05)
+  if (Serial.available()) {
+    String command = Serial.readStringUntil('\n');
+    command.trim(); // Clean up the incoming command
+
+    if (command.startsWith("MSG ")) {
+      incomingMessage = command.substring(4); // Extract message after "MSG "
+      autoRepeat = false;  // Disable auto-repeat on new message
+      Serial.print("New Message: ");
+      Serial.println(incomingMessage);
+    } else if (command.startsWith("SPEED ")) {
+      int newSpeed = command.substring(6).toInt();  // Parse speed
+      if (newSpeed > 0 && newSpeed <= 50) { // Set speed range
+        dotLength = 1200 / newSpeed;  // Set new dot length based on WPM
+        Serial.print("Speed set to: ");
+        Serial.println(newSpeed);
+      } else {
+        Serial.println("Invalid Speed. Enter 1-50 WPM.");
+      }
+    } else if (command.startsWith("DELAY ")) {
+      repeatDelay = command.substring(6).toInt();  // Parse delay
+      Serial.print("Repeat Delay set to: ");
+      Serial.println(repeatDelay);
+    } else if (command == "START") {
+      autoRepeat = true;  // Start auto-repeat of the message
+      lastTransmission = millis();  // Start the timer
+      Serial.println("Auto-repeat started.");
+    } else if (command == "STOP") {
+      autoRepeat = false;  // Stop auto-repeat
+      Serial.println("Auto-repeat stopped.");
+    } else if (command == "CLEAR") {
+      incomingMessage = "";  // Clear the message
+      Serial.println("Message cleared.");
+    } else {
+      Serial.println("Unknown command.");
+    }
+  }
+
+  // Auto-repeat functionality
+  if (autoRepeat && (millis() - lastTransmission >= repeatDelay)) {
+    sendMorse(incomingMessage);
+    lastTransmission = millis();  // Reset timer after sending message
+  }
+
+  // Wait for user input to send the message manually
+  if (!autoRepeat && incomingMessage.length() > 0) {
+    sendMorse(incomingMessage);
+    incomingMessage = "";  // Clear message after sending
+  }
+}
+
+void sendMorse(String text) {
+  digitalWrite(pttRelayPin, HIGH);  // Key the radio
+  delay(100);  // Give time to key up
+
+  for (char c : text) {
+    sendChar(c);  // Send Morse code for each character
+    delay(dotLength * 3);  // Space between characters
+  }
+
+  digitalWrite(pttRelayPin, LOW);  // Unkey the radio
+}
+
+void sendChar(char c) {
+  String morse = getMorse(c);
+  for (char s : morse) {
+    if (s == '.') {
+      tone(tonePin, toneFreq);  // Play tone for dot
+      delay(dotLength);
+    } else if (s == '-') {
+      tone(tonePin, toneFreq);  // Play tone for dash
+      delay(dotLength * 3);
+    }
+    noTone(tonePin);  // Stop tone after dot/dash
+    delay(dotLength);  // Space between dots/dashes
+  }
+}
+
+String getMorse(char c) {
+  c = toupper(c);  // Convert character to uppercase
+  switch (c) {
+    case 'A': return ".-";
+    case 'B': return "-...";
+    case 'C': return "-.-.";
+    case 'D': return "-..";
+    case 'E': return ".";
+    case 'F': return "..-.";
+    case 'G': return "--.";
+    case 'H': return "....";
+    case 'I': return "..";
+    case 'J': return ".---";
+    case 'K': return "-.-";
+    case 'L': return ".-..";
+    case 'M': return "--";
+    case 'N': return "-.";
+    case 'O': return "---";
+    case 'P': return ".--.";
+    case 'Q': return "--.-";
+    case 'R': return ".-.";
+    case 'S': return "...";
+    case 'T': return "-";
+    case 'U': return "..-";
+    case 'V': return "...-";
+    case 'W': return ".--";
+    case 'X': return "-..-";
+    case 'Y': return "-.--";
+    case 'Z': return "--..";
+    case '1': return ".----";
+    case '2': return "..---";
+    case '3': return "...--";
+    case '4': return "....-";
+    case '5': return ".....";
+    case '6': return "-....";
+    case '7': return "--...";
+    case '8': return "---..";
+    case '9': return "----.";
+    case '0': return "-----";
+    case ' ': return "";  // No space for word spacing, will be handled by timing
+    default: return "";  // Handle invalid characters
+  }
+}
